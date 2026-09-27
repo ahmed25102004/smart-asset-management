@@ -1,0 +1,16 @@
+name: mobile_app
+description: "Flutter Field Technician App (Offline First)"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  sqflite: ^2.3.0
+  camera: ^0.10.5
+  qr_code_scanner: ^1.0.1
+  http: ^1.1.0
+  flutter_bloc: ^8.1.3

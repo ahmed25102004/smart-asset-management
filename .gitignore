@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# Node
+node_modules/
+.next/
+dist/
+build/
+
+# Flutter / Dart
+.dart_tool/
+.build/
+build/
+*.apk
+
+# Environment & IDE
+.env
+.vscode/
+.idea/
+*.swp
+.DS_Store

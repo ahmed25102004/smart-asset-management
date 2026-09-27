@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgis/postgis:15-3.3
+    container_name: smart_asset_db
+    environment:
+      POSTGRES_DB: smart_asset_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+    ports:
+      - "5432:5432"
+
+  mqtt-broker:
+    image: eclipse-mosquitto:latest
+    container_name: smart_asset_mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
