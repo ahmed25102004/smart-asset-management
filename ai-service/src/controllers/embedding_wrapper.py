@@ -1,11 +1,25 @@
 import re
 import math
 import logging
+from abc import ABC, abstractmethod
 from typing import List, Optional
 
 logger = logging.getLogger("ai_service.embedding")
 
-class EmbeddingGenerator:
+class BaseEmbeddingModel(ABC):
+    """Abstract Base Class for Embedding Models (Strategy Pattern)."""
+    
+    @abstractmethod
+    def embed_text(self, text: str) -> List[float]:
+        pass
+
+    @abstractmethod
+    def embed_batch(self, texts: List[str]) -> List[List[float]]:
+        pass
+
+class EmbeddingGenerator(BaseEmbeddingModel):
+    """Encapsulated OOP Embedding Generator with SentenceTransformers & fallback."""
+    
     def __init__(self, model_name: str = "all-MiniLM-L6-v2", dimension: int = 384):
         self.model_name = model_name
         self.dimension = dimension
@@ -29,7 +43,6 @@ class EmbeddingGenerator:
             vec = model.encode(text, convert_to_numpy=True).tolist()
             return vec
         
-        # Deterministic lightweight fallback embedding (for fast testing / offline execution)
         return self._fallback_embedding(text)
 
     def embed_batch(self, texts: List[str]) -> List[List[float]]:
@@ -58,7 +71,6 @@ class EmbeddingGenerator:
             idx = hash_val % self.dimension
             vec[idx] += 1.0 / (i + 1)
 
-        # L2 Normalize
         norm = math.sqrt(sum(x * x for x in vec))
         if norm > 0:
             vec = [x / norm for x in vec]
@@ -66,42 +78,53 @@ class EmbeddingGenerator:
             vec[0] = 1.0
         return vec
 
-def chunk_text(text: str, chunk_size: int = 400, overlap: int = 50) -> List[str]:
-    """Splits raw text into overlapping paragraphs/chunks for RAG ingestion."""
-    if not text or len(text.strip()) == 0:
-        return []
+class TextChunker:
+    """OOP Service for splitting raw manual text into structured overlapping chunks."""
     
-    clean_text = text.strip()
-    if len(clean_text) <= chunk_size:
-        return [clean_text]
+    def __init__(self, chunk_size: int = 400, overlap: int = 50):
+        self.chunk_size = chunk_size
+        self.overlap = overlap
+
+    def split_text(self, text: str) -> List[str]:
+        """Splits raw text into overlapping paragraphs/chunks for RAG ingestion."""
+        if not text or len(text.strip()) == 0:
+            return []
         
-    paragraphs = clean_text.split("\n\n")
-    chunks = []
-    current_chunk = ""
-    
-    for para in paragraphs:
-        para = para.strip()
-        if not para:
-            continue
+        clean_text = text.strip()
+        if len(clean_text) <= self.chunk_size:
+            return [clean_text]
             
-        if len(current_chunk) + len(para) + 2 <= chunk_size:
-            current_chunk = (current_chunk + "\n\n" + para).strip()
-        else:
-            if current_chunk:
-                chunks.append(current_chunk)
-            
-            # If paragraph itself exceeds chunk_size, split by sentences/words
-            if len(para) > chunk_size:
-                start = 0
-                while start < len(para):
-                    end = start + chunk_size
-                    chunks.append(para[start:end].strip())
-                    start += (chunk_size - overlap)
-                current_chunk = ""
-            else:
-                current_chunk = para
+        paragraphs = clean_text.split("\n\n")
+        chunks = []
+        current_chunk = ""
+        
+        for para in paragraphs:
+            para = para.strip()
+            if not para:
+                continue
                 
-    if current_chunk and current_chunk not in chunks:
-        chunks.append(current_chunk)
-        
-    return chunks
+            if len(current_chunk) + len(para) + 2 <= self.chunk_size:
+                current_chunk = (current_chunk + "\n\n" + para).strip()
+            else:
+                if current_chunk:
+                    chunks.append(current_chunk)
+                
+                if len(para) > self.chunk_size:
+                    start = 0
+                    while start < len(para):
+                        end = start + self.chunk_size
+                        chunks.append(para[start:end].strip())
+                        start += (self.chunk_size - self.overlap)
+                    current_chunk = ""
+                else:
+                    current_chunk = para
+                    
+        if current_chunk and current_chunk not in chunks:
+            chunks.append(current_chunk)
+            
+        return chunks
+
+# Backward compatibility functional wrapper
+def chunk_text(text: str, chunk_size: int = 400, overlap: int = 50) -> List[str]:
+    chunker = TextChunker(chunk_size=chunk_size, overlap=overlap)
+    return chunker.split_text(text)
