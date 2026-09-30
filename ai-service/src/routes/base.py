@@ -1,3 +1,4 @@
+import time
 import uuid
 import logging
 from typing import List
@@ -5,6 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 from models.schema import (
     IngestManualRequest,
     IngestManualResponse,
+    BatchIngestManualRequest,
     ManualQARequest,
     ManualQAResponse,
     ManualChunkIngest,
@@ -99,17 +101,20 @@ def manual_qa(payload: ManualQARequest):
     """
     Performs RAG similarity search and generates structured technical answers with citations.
     """
+    start_time = time.time()
     try:
         # Check basic guardrail / out of scope filters
         lowered_query = payload.query.lower()
         non_technical_keywords = ["weather", "football", "recipe", "song", "movie", "who won"]
         if any(kw in lowered_query for kw in non_technical_keywords):
+            elapsed_ms = round((time.time() - start_time) * 1000, 2)
             return ManualQAResponse(
                 query=payload.query,
                 answer=OUT_OF_SCOPE_DECLINE_MESSAGE,
                 citations=[],
                 confidence_score=0.0,
-                out_of_scope=True
+                out_of_scope=True,
+                retrieval_time_ms=elapsed_ms
             )
 
         # Vector Store Search
@@ -121,13 +126,16 @@ def manual_qa(payload: ManualQARequest):
             diagram_present=True if payload.include_diagrams else None
         )
 
+        elapsed_ms = round((time.time() - start_time) * 1000, 2)
+
         if not retrieved_chunks:
             return ManualQAResponse(
                 query=payload.query,
                 answer="No relevant technical manual context found for your query in the Vector Store.",
                 citations=[],
                 confidence_score=0.0,
-                out_of_scope=False
+                out_of_scope=False,
+                retrieval_time_ms=elapsed_ms
             )
 
         # Build Citations
@@ -141,6 +149,8 @@ def manual_qa(payload: ManualQARequest):
                     page_number=meta.get("page_number", 1),
                     section_title=meta.get("section_title", "General"),
                     snippet=chunk.get("text_content", "")[:150] + "...",
+                    diagram_present=meta.get("diagram_present", False),
+                    image_url=meta.get("image_url", None),
                     relevance_score=chunk.get("relevance_score", 0.0)
                 )
             )
@@ -168,7 +178,8 @@ def manual_qa(payload: ManualQARequest):
             answer=constructed_answer,
             citations=citations,
             confidence_score=round(avg_confidence, 4),
-            out_of_scope=False
+            out_of_scope=False,
+            retrieval_time_ms=elapsed_ms
         )
 
     except Exception as e:
